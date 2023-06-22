@@ -28,7 +28,7 @@ if __name__ == "__main__":
         piece_name = piece.name()
         print(board.display_setup())
         action = ""
-        while action != "p" and action != "a":
+        while action not in ["p", "a", "m"]:
             print(piece_name + "'s Turn")
             action = input("Choose your action: ")
             if action.lower() == "p":
@@ -45,20 +45,31 @@ if __name__ == "__main__":
                         print("That position does not exist.")
             elif action.lower() == "a":
                 # Code for handling attack action
-                while True:
+                attack_success = False
+                while not attack_success:
                     print(board.display_setup())
                     try:
                         attack_prompt = input("Enter a grid coordinate to attack: ")
                         if board.has_been_hit(attack_prompt):
                             raise InvalidPlacementException()
                         board.attack(attack_prompt)
+                        attack_success = True  # Set flag to exit the loop
                     except InvalidPositionException:
                         print("That is not a valid position to attack.")
                     except InvalidPlacementException:
                         print("That position has already been attacked. Try again.")
+            elif action.lower() == "m":
+                while True:
+                    try:
+                        marry1 = input("Choose a white piece for the marriage")
+                        marry2 = input("Choose a black piece for the marriage")
+                        board.mark_married(marry1, marry2)
+                        print("Pieces", marry1, "and", marry2, "are married!")
+
 
             else:
-                print("Invalid action. Only 'p' or 'a' allowed.")
+                print("Invalid action. Only 'p', 'a', 'm' allowed.")
+
     print(board.display_setup())
 
     print("The game is over," + winner + " has been declared the winner with" + str(count) + " children!")
