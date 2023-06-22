@@ -18,8 +18,7 @@ if __name__ == "__main__":
             try:
                 ship_promt = print("Where would you like to place your " + ship_name + "?")
                 position = input("Position: ")
-                direction = input("Direction: ")
-                board.place_ship(ship, position, direction)
+                board.place_ship(ship, position)
                 break
             except InvalidPlacementException:
                 print("That is not a valid placement for that ship.")

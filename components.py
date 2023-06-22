@@ -84,8 +84,7 @@ class Cell:
     def __str__(self) -> str:
         if not self.has_been_hit():
             return "."
-        elif not self.is_occupied():
-            return "O"
+    # removed the hit-but-not-sunk thing, need to construct logic to display married couple
         elif not self.__segment.get_ship().sunk():
             return "X"
         else:
