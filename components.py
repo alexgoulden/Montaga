@@ -1,38 +1,38 @@
 from __future__ import annotations
 
-class Ship:
+class Piece:
 
     __key = object()
     __lengths = {"white": 1, "black": 1}
     __names = {"white": "White", "black": "Black"}
-    __grid_rep = {"white": chr(0x26AA), "black": chr(0x25EF)}
+    __grid_rep = {"white": "W", "black": "B"}
 
     @classmethod
-    def createShip(cls, ship_type: str) -> Ship:
-        if ship_type.lower() in {"white", "black"}:
-            return Ship(Ship.__key, ship_type.lower())
+    def createPiece(cls, piece_type: str) -> Piece:
+        if piece_type.lower() in {"white", "black"}:
+            return Piece(Piece.__key, piece_type.lower())
         else:
             return None
 
-    def __init__(self, key: object, ship_type: str) -> None:
-        assert key is Ship.__key, "Ship constructor should not be called directly."
-        self.__ship_type = ship_type
+    def __init__(self, key: object, piece_type: str) -> None:
+        assert key is Piece.__key, "Piece constructor should not be called directly."
+        self.__piece_type = piece_type
         self.__segments = dict((i, Segment(self)) for i in range(1, self.length() + 1))
 
     def length(self) -> int:
-        return Ship.__lengths.get(self.__ship_type, 0)
+        return Piece.__lengths.get(self.__piece_type, 0)
 
     def get_segment(self, number: int) -> Segment:
         return self.__segments.get(number, None)
 
     def name(self) -> str:
-        return Ship.__names.get(self.__ship_type, "?")
+        return Piece.__names.get(self.__piece_type, "?")
 
     def sunk(self) -> bool:
         return all(s.hit() for s in self.__segments.values())
 
     def __str__(self) -> str:
-        return Ship.__grid_rep.get(self.__ship_type, "?")
+        return Piece.__grid_rep.get(self.__piece_type, "?")
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -40,8 +40,8 @@ class Ship:
 
 class Segment:
 
-    def __init__(self, ship: Ship) -> None:
-        self.__ship = ship
+    def __init__(self, piece: Piece) -> None:
+        self.__piece = piece
         self.__hit = False
 
     def hit(self) -> bool:
@@ -50,11 +50,11 @@ class Segment:
     def attack(self) -> None:
         self.__hit = True
 
-    def get_ship(self) -> Ship:
-        return self.__ship
+    def get_piece(self) -> Piece:
+        return self.__piece
 
     def __str__(self) -> str:
-        return self.__ship.__str__() if self.__ship is not None else "?"
+        return self.__piece.__str__() if self.__piece is not None else "?"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -84,9 +84,9 @@ class Cell:
     def __str__(self) -> str:
         if not self.has_been_hit():
             return "."
-    # removed the hit-but-not-sunk thing, need to construct logic to display married couple
-        elif not self.__segment.get_ship().sunk():
-            return "X"
+    # need to construct logic to display married couple
+        elif not self.__segment.get_piece().sunk():
+            return self.__segment + "X"
         else:
             return self.__segment.__str__()
 
@@ -101,7 +101,7 @@ class InvalidPositionException(Exception):
     pass
 
 
-class InvalidShipTypeException(Exception):
+class InvalidPieceTypeException(Exception):
     pass
 
 
@@ -122,9 +122,9 @@ class Board:
                 row[col_key] = Cell()
             self.__board[row_key] = row
 
-    def place_ship(self, ship: Ship, position: str, direction: str) -> None:
-        if ship is None:
-            raise InvalidShipTypeException()
+    def place_piece(self, piece: Piece, position: str) -> None:
+        if piece is None:
+            raise InvalidPieceTypeException()
 
         row = Board.__row_map.get(position[:1].upper(), None)
         col = -1
@@ -136,26 +136,19 @@ class Board:
         if row not in self.__board.keys() or col not in self.__board[row].keys():
             raise InvalidPositionException()
 
-        if direction.lower() not in {"across", "down"}:
-            raise InvalidPlacementException()
+        for i in range(col, col + piece.length()):
+            if i > Board.SIZE or self.__board[row][i].is_occupied():
+                raise InvalidPlacementException()
 
-        if direction.lower() == "across":
-            for i in range(col, col + ship.length()):
-                if i > Board.SIZE or self.__board[row][i].is_occupied():
-                    raise InvalidPlacementException()
+        for i in range(row, row + piece.length()):
+            if i > Board.SIZE or self.__board[i][col].is_occupied():
+                raise InvalidPlacementException()
 
-        if direction.lower() == "down":
-            for i in range(row, row + ship.length()):
-                if i > Board.SIZE or self.__board[i][col].is_occupied():
-                    raise InvalidPlacementException()
+        for i in range(col, col + piece.length()):
+            self.__board[row][i].place_segment(piece.get_segment(i - col + 1))
 
-        if direction.lower() == "across":
-            for i in range(col, col + ship.length()):
-                self.__board[row][i].place_segment(ship.get_segment(i - col + 1))
-
-        if direction.lower() == "down":
-            for i in range(row, row + ship.length()):
-                self.__board[i][col].place_segment(ship.get_segment(i - row + 1))
+        for i in range(row, row + piece.length()):
+            self.__board[i][col].place_segment(piece.get_segment(i - row + 1))
 
     def attack(self, position: str) -> None:
         print("Attacking", position)
