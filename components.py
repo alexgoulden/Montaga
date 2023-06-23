@@ -3,13 +3,13 @@ from __future__ import annotations
 class Piece:
 
     __key = object()
-    __lengths = {"white": 1, "black": 1}
-    __names = {"white": "White", "black": "Black"}
-    __grid_rep = {"white": "W", "black": "B"}
+    __lengths = {"white": 1, "black": 1, "married": 1}
+    __names = {"white": "White", "black": "Black", "married": "Married"}
+    __grid_rep = {"white": "W", "black": "B", "married": "M"}
 
     @classmethod
     def createPiece(cls, piece_type: str) -> Piece:
-        if piece_type.lower() in {"white", "black"}:
+        if piece_type.lower() in {"white", "black", "married"}:
             return Piece(Piece.__key, piece_type.lower())
         else:
             return None
@@ -17,19 +17,12 @@ class Piece:
     def __init__(self, key: object, piece_type: str) -> None:
         assert key is Piece.__key, "Piece constructor should not be called directly."
         self.__piece_type = piece_type
-        self.__segments = dict((i, Segment(self)) for i in range(1, self.length() + 1))
 
     def length(self) -> int:
         return Piece.__lengths.get(self.__piece_type, 0)
 
-    def get_segment(self, number: int) -> Segment:
-        return self.__segments.get(number, None)
-
     def name(self) -> str:
         return Piece.__names.get(self.__piece_type, "?")
-
-    def sunk(self) -> bool:
-        return all(s.hit() for s in self.__segments.values())
 
     def __str__(self) -> str:
         return Piece.__grid_rep.get(self.__piece_type, "?")
@@ -37,33 +30,10 @@ class Piece:
     def __repr__(self) -> str:
         return self.__str__()
 
-
-class Segment:
-
-    def __init__(self, piece: Piece) -> None:
-        self.__piece = piece
-        self.__hit = False
-
-    def hit(self) -> bool:
-        return self.__hit
-
-    def attack(self) -> None:
-        self.__hit = True
-
-    def get_piece(self) -> Piece:
-        return self.__piece
-
-    def __str__(self) -> str:
-        return self.__piece.__str__() if self.__piece is not None else "?"
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-
 class Cell:
 
-    def __init__(self) -> None:
-        self.__segment = None
+    def __init__(self, piece: Piece = None) -> None:
+        self.__piece = piece
         self.__hit = False
         self.__married = False
 
@@ -71,34 +41,37 @@ class Cell:
         return self.__hit
 
     def attack(self) -> None:
-        if self.__segment is not None:
-            self.__segment.attack()
-        self.__hit = True
+        if self.__piece is not None:
+            self.__hit = True
 
-    # Other methods...
+    def get_piece(self) -> Piece:
+        return self.__piece
 
-    def mark_married(self) -> None:
-        self.__married = True
+    def place_piece(self, piece: Piece) -> None:
+        if self.__piece is None:
+            self.__piece = piece
 
     def is_married(self) -> bool:
         return self.__married
 
-    def is_occupied(self) -> bool:
-        return self.__segment is not None
+    def set_married(self, is_married: bool) -> None:
+        self.__married = is_married
 
-    def place_segment(self, segment: Segment) -> None:
-        if not self.is_occupied():
-            self.__segment = segment
+    def __str__(self) -> str:
+        return self.__piece.__str__() if self.__piece is not None else "?"
+
+    def __repr__(self) -> str:
+        return self.__str__()
 
     def display_setup(self) -> str:
         if self.has_been_hit():
-            cell_piece = self.__segment.__str__()
             return "X"
-        elif self.is_occupied():
-            return self.__segment.__str__()
+        elif self.is_married():
+            return "M"
+        elif self.__piece is not None:
+            return self.__piece.__str__()
         else:
             return "."
-
 
 class InvalidPositionException(Exception):
     pass
@@ -119,6 +92,7 @@ class Board:
 
     def __init__(self) -> None:
         self.__board = {}
+        self.__married_pairs = {} # Keep track of married pairs
         for row_key in range(1, Board.SIZE + 1):
             row = {}
             for col_key in range(1, Board.SIZE + 1):
@@ -140,18 +114,27 @@ class Board:
             raise InvalidPositionException()
 
         for i in range(col, col + piece.length()):
-            if i > Board.SIZE or self.__board[row][i].is_occupied():
+            if i > Board.SIZE or self.__board[row][i].get_piece() is not None:
                 raise InvalidPlacementException()
 
-        for i in range(row, row + piece.length()):
-            if i > Board.SIZE or self.__board[i][col].is_occupied():
-                raise InvalidPlacementException()
+            # Check if the piece is being placed adjacent to another piece
+            adjacent_positions = [(row-1, i), (row+1, i), (row, i-1), (row, i+1)]
+            for adj_row, adj_col in adjacent_positions:
+                if adj_row in self.__board.keys() and adj_col in self.__board[adj_row].keys():
+                    adjacent_cell = self.__board[adj_row][adj_col]
+                    if adjacent_cell.get_piece() is not None:
+                        # If adjacent cell has a married piece, allow placement
+                        if adjacent_cell.get_piece().name() == "Married":
+                            continue
+                        elif not adjacent_cell.is_married():
+                            raise InvalidPlacementException("Can't place a piece adjacent to another piece unless they are married or adjacent to a married piece!")
 
-        for i in range(col, col + piece.length()):
-            self.__board[row][i].place_segment(piece.get_segment(i - col + 1))
+        # Check if the cell is occupied
+        if self.__board[row][col].get_piece() is not None:
+            raise InvalidPlacementException()
 
-        for i in range(row, row + piece.length()):
-            self.__board[i][col].place_segment(piece.get_segment(i - row + 1))
+        # Place piece on the cell
+        self.__board[row][col].place_piece(piece)
 
     def attack(self, position: str) -> None:
         print("Attacking", position)
@@ -163,40 +146,13 @@ class Board:
             raise InvalidPositionException()
         if row not in self.__board.keys() or col not in self.__board[row].keys():
             raise InvalidPositionException()
+
+        # Check if the cell being attacked is part of a married pair
+        if (row, col) in self.__married_pairs:
+            # If so, also attack the other cell in the pair
+            other_row, other_col = self.__married_pairs[(row, col)]
+            self.__board[other_row][other_col].attack()
         self.__board[row][col].attack()
-
-    def mark_married(self, position1: str, position2: str) -> None:
-        row1 = Board.__row_map.get(position1[:1].upper(), None)
-        col1 = -1
-        if position1[1:].isdigit():
-            col1 = int(position1[1:])
-        else:
-            raise InvalidPositionException()
-
-        row2 = Board.__row_map.get(position2[:1].upper(), None)
-        col2 = -1
-        if position2[1:].isdigit():
-            col2 = int(position2[1:])
-        else:
-            raise InvalidPositionException()
-
-        if row1 not in self.__board.keys() or col1 not in self.__board[row1].keys() or \
-                row2 not in self.__board.keys() or col2 not in self.__board[row2].keys():
-            raise InvalidPositionException()
-
-        if self.__board[row1][col1].is_occupied() and self.__board[row2][col2].is_occupied():
-            piece1 = self.__board[row1][col1].get_segment().get_piece()
-            piece2 = self.__board[row2][col2].get_segment().get_piece()
-
-            if piece1 != piece2:
-                for row in self.__board.values():
-                    for cell in row.values():
-                        if cell.is_occupied() and cell.get_segment().get_piece() in [piece1, piece2]:
-                            cell.mark_married()
-            else:
-                raise InvalidPlacementException()
-        else:
-            raise InvalidPlacementException()
 
     def has_been_hit(self, position: str) -> bool:
         row = Board.__row_map.get(position[:1].upper(), None)
@@ -208,6 +164,33 @@ class Board:
         if row not in self.__board.keys() or col not in self.__board[row].keys():
             raise InvalidPositionException()
         return self.__board[row][col].has_been_hit()
+
+    def mark_married(self, position1: str, position2: str) -> None:
+        row1 = Board.__row_map.get(position1[:1].upper(), None)
+        col1 = int(position1[1:])
+        row2 = Board.__row_map.get(position2[:1].upper(), None)
+        col2 = int(position2[1:])
+
+        if row1 not in self.__board.keys() or col1 not in self.__board[row1].keys() or \
+                row2 not in self.__board.keys() or col2 not in self.__board[row2].keys():
+            raise InvalidPositionException()
+
+        cell1 = self.__board[row1][col1]
+        cell2 = self.__board[row2][col2]
+
+        # Set is_married to True for both cells
+        cell1.set_married(True)
+        cell2.set_married(True)
+
+        # Record the married pair in the dictionary
+        self.__married_pairs[(row1, col1)] = (row2, col2)
+        self.__married_pairs[(row2, col2)] = (row1, col1)
+
+        married_piece = Piece.createPiece("married")
+
+        # Overwrite pieces with the married piece
+        cell1.place_piece(married_piece)
+        cell2.place_piece(married_piece)
 
     def __str__(self) -> str:
         grid = "  1 2 3 4 5\n"

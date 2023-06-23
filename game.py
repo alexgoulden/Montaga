@@ -1,10 +1,8 @@
-from components import Segment, Piece, Cell, InvalidPlacementException, InvalidPositionException, \
-    InvalidPieceTypeException, Board
+from components import Piece, Cell, InvalidPlacementException, InvalidPositionException, InvalidPieceTypeException, Board
 
 if __name__ == "__main__":
     board = Board()
     pieces = []
-
 
     for piece_name in Piece._Piece__names:
         piece = Piece.createPiece(piece_name)
@@ -19,8 +17,6 @@ if __name__ == "__main__":
 
     # p: place, a: attack, ph: phantom placement, m: marry, ps: plot n scheme
 
-    # reuse the attack code that is already further down
-
     for i in range(turns):
         print("\n" + str(turns - i) + " turns remain")
         # Alternate between the two players
@@ -30,7 +26,7 @@ if __name__ == "__main__":
         action = ""
         while action not in ["p", "a", "m"]:
             print(piece_name + "'s Turn")
-            action = input("Choose your action: ")
+            action = input("Choose your action, p: place, a: attack, m: marry: ")
             if action.lower() == "p":
                 while True:
                     print(board.display_setup())
@@ -59,17 +55,13 @@ if __name__ == "__main__":
                     except InvalidPlacementException:
                         print("That position has already been attacked. Try again.")
             elif action.lower() == "m":
-                while True:
-                    try:
-                        marry1 = input("Choose a white piece for the marriage")
-                        marry2 = input("Choose a black piece for the marriage")
-                        board.mark_married(marry1, marry2)
-                        print("Pieces", marry1, "and", marry2, "are married!")
-
-
+                marry1 = input("Choose a white piece for the marriage: ")
+                marry2 = input("Choose a black piece for the marriage: ")
+                board.mark_married(marry1, marry2)
+                print("Pieces", marry1, "and", marry2, "are married!")
             else:
                 print("Invalid action. Only 'p', 'a', 'm' allowed.")
 
-    print(board.display_setup())
+    print(board.__str__())
 
-    print("The game is over," + winner + " has been declared the winner with" + str(count) + " children!")
+    print("The game is over, whoever has the most places has been declared the winner with however many children!")
